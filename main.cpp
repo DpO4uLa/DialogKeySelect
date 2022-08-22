@@ -5,7 +5,13 @@ unsigned __int32 GetBase(void) {
 }
 
 bool IsListBoxActive(void) {
-	return *(int*)(*(int*)(GetBase() + 0x21A0B8) + 0x20) != 0 ? true : false;
+	if (GetBase() == 0)
+		return false;
+	if(*(int*)(GetBase() + 0x21A0B8) == 0)
+		return false;
+	if (*(int*)(*(int*)(GetBase() + 0x21A0B8) + 0x20) == 0)
+		return false;
+	return true;
 }
 
 void ListBoxSetScrollIndex(int index) { // ??
