@@ -3,9 +3,11 @@
 
 class CKeyHook {
 private:
-	using WndProc_t = LRESULT(__stdcall*)(HWND, UINT, WPARAM, LPARAM);
-	std::unique_ptr<memwrapper::memhook<WndProc_t>> pObjWndProcHook = nullptr;
-	static LRESULT __stdcall WndProc_HOOKED(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+	using SampWndProc_t = int(__thiscall*)(int, int, int);
+	using CallbackWndProc_t = int(__stdcall*)(int*, int*, int*);
+	std::unique_ptr<memwrapper::memhook<SampWndProc_t>> pObjSampWndProcHook = nullptr;
+	static int __fastcall WndProc_HOOKED(void* _this, void* edx86, int uMsg, int wParam, int lParam);
+	CallbackWndProc_t WndProcCallback;
 	bool bKeyTable[256];
 public:
 	bool isKeyDown(uint8_t key) {
@@ -32,19 +34,23 @@ public:
 		return false;
 	}
 
+	inline void RegisterWndProcCallback(CallbackWndProc_t func) {
+		WndProcCallback = func;
+	};
+
 	CKeyHook() {
-		pObjWndProcHook = std::make_unique<memwrapper::memhook<WndProc_t>>(0x00747EB0U, WndProc_HOOKED);
-		pObjWndProcHook->install();
+		pObjSampWndProcHook = std::make_unique<memwrapper::memhook<SampWndProc_t>>((DWORD)GetModuleHandleA("samp.dll") + 0x65B30, WndProc_HOOKED);
+		pObjSampWndProcHook->install();
 	};
 
 	~CKeyHook() {
-		pObjWndProcHook->remove();
+		pObjSampWndProcHook->remove();
 	};
 };
 
 CKeyHook* pKeyHook = nullptr;
 
-LRESULT __stdcall CKeyHook::WndProc_HOOKED(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+int __fastcall CKeyHook::WndProc_HOOKED(void* _this, void* edx86, int uMsg, int wParam, int lParam) {
 	switch (uMsg)
 	{
 	case WM_LBUTTONDOWN:
@@ -94,5 +100,11 @@ LRESULT __stdcall CKeyHook::WndProc_HOOKED(HWND hWnd, UINT uMsg, WPARAM wParam, 
 	}
 	}
 
-	return pKeyHook->pObjWndProcHook->call<HWND, UINT, WPARAM, LPARAM>(hWnd, uMsg, wParam, lParam);
+	if (pKeyHook->WndProcCallback != 0) {
+		LRESULT res = pKeyHook->WndProcCallback(&uMsg, &wParam, &lParam);
+		if (res != 0)
+			return res;
+	}
+
+	return pKeyHook->pObjSampWndProcHook->call<void*, int, int, int>(_this, uMsg, wParam, lParam);
 }
